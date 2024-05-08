@@ -29,6 +29,9 @@ class Client:
         self.sock.bind(('', random.randint(10000, 40000)))
         self.name = username
 
+        # additional variables
+        # self.close_connection = False
+
     def start(self):
         '''
         Main Loop is here
@@ -36,16 +39,50 @@ class Client:
         Use make_message() and make_util() functions from util.py to make your first join packet
         Waits for userinput and then process it
         '''
-        raise NotImplementedError # remove it once u start your implementation
-            
+        # implementation
+        print("username is ", USER_NAME)
+        message = util.make_message(util.JOIN_MESSAGE,util.TYPE_ONE_MSG_FORMAT,USER_NAME)
+        packet = util.make_packet(util.DATA_PACKET_TYPE,0,message)
+        self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
+
+        # listens for messages from server
+        self.receive_handler()
 
     def receive_handler(self):
         '''
         Waits for a message from server and process it accordingly
         '''
-        raise NotImplementedError # remove it once u start your implementation
+        # implementation
+        while True:
+            print("waiting for message from server...")
+            msg, _ = self.sock.recvfrom(util.CHUNK_SIZE)
+            packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
+            match packet_type:
+                case util.DATA_PACKET_TYPE:
+                    message = data.split()[0]
+                    match message:
+                        case util.ERR_SERVER_FULL_MESSAGE:
+                            print("received ERR_SERVER_FULL_MESSAGE from server")
+                            # close the connection to server and shut down
+                            print("disconnected: server full")
+                        case util.ERR_USERNAME_UNAVAILABLE_MESSAGE:
+                            print("received err username unavailable msg from server")
+                            # close the connection to server and shut down
+                            print("disconnected: username not available")
+                        case _:
+                            print("other message kind")
+                case util.START_PACKET_TYPE:
+                    print("Start packet type")
+                case util.END_PACKET_TYPE:
+                    print("End packet type")
+                case util.ACK_PACKET_TYPE:
+                    print("Ack packet type")
+                case _:
+                    print("invalid packet type")
 
-
+            print("Received msg from server:: ",msg)
+        # close connection
+        # self.sock.close()
 
 # Do not change below part of code
 if __name__ == "__main__":

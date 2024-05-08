@@ -6,7 +6,6 @@ import getopt
 import socket
 import util
 
-
 class Server:
     '''
     This is the main Server Class. You will  write Server code inside this class.
@@ -19,13 +18,69 @@ class Server:
         self.sock.settimeout(None)
         self.sock.bind((self.server_addr, self.server_port))
 
+        # additional variables
+        self.active_clients = {} # username : (client_ip_addr,client_port)
+
     def start(self):
         '''
         Main loop.
         continue receiving messages from Clients and processing it.
 
         '''
-        raise NotImplementedError # remove it once u start your implementation
+        # implementation
+        while True:
+            # listen for messages from clients
+            print("Server socket {}".format(self.sock))
+            msg,client = self.sock.recvfrom(util.CHUNK_SIZE)
+            packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
+            match packet_type:
+                case util.DATA_PACKET_TYPE:
+                    print("Data packet type")
+                    message = data.split()[0]
+                    match message:
+                        case util.JOIN_MESSAGE:
+                            print("join messaged detected")
+                            # check for server full
+                            if len(self.active_clients) == util.MAX_NUM_CLIENTS:
+                                response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                            util.make_message(util.ERR_SERVER_FULL_MESSAGE,
+                                                                              util.TYPE_TWO_MSG_FORMAT))
+                                self.sock.sendto(response.encode(), client)
+                                print("disconnected: server full")
+                                continue
+
+                            # check for existing username
+                            client_username = data.split()[-1]
+                            if client_username in self.active_clients:
+                                response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                            util.make_message(util.ERR_USERNAME_UNAVAILABLE_MESSAGE,
+                                                                              util.TYPE_TWO_MSG_FORMAT))
+                                self.sock.sendto(response.encode(), client)
+                                print("disconnected: username not available")
+                                continue
+                            # add user
+                            self.active_clients[client_username] = client
+                            print("join: {}".format(client_username))
+                        case util.REQUEST_USERS_LIST_MESSAGE:
+                            pass
+
+# Message Format: Type 2
+# Sender Action: A client sends this message to the server when it receives a message list via standard
+# input.
+# Receiver Action: The server will reply with RESPONSE_USERS_LIST message and will print:
+# request_users_list: <username>
+
+                        case _:
+                            print("other message detected")
+
+                case util.START_PACKET_TYPE:
+                    print("Start packet type")
+                case util.END_PACKET_TYPE:
+                    print("End packet type")
+                case util.ACK_PACKET_TYPE:
+                    print("Ack packet type")
+                case _:
+                    print("invalid packet type")
 
 # Do not change below part of code
 

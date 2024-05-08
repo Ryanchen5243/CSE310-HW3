@@ -7,6 +7,23 @@ MAX_NUM_CLIENTS = 10
 TIME_OUT = 0.5 # 500ms
 CHUNK_SIZE = 1400 # 1400 Bytes
 
+# additional utils
+START_PACKET_TYPE = "start"
+END_PACKET_TYPE = "end"
+ACK_PACKET_TYPE = "ack"
+DATA_PACKET_TYPE = "data"
+
+TYPE_ONE_MSG_FORMAT = 1
+TYPE_TWO_MSG_FORMAT = 2
+TYPE_THREE_MSG_FORMAT = 3
+TYPE_FOUR_MSG_FORMAT = 4
+
+JOIN_MESSAGE = "join"
+ERR_SERVER_FULL_MESSAGE = "err_server_full"
+ERR_USERNAME_UNAVAILABLE_MESSAGE = "err_username_unavailable"
+REQUEST_USERS_LIST_MESSAGE = "request_users_list"
+
+
 def validate_checksum(message):
     '''
     Validates Checksum of a message and returns true/false
