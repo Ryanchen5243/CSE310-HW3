@@ -29,8 +29,8 @@ class Client:
         self.sock.bind(('', random.randint(10000, 40000)))
         self.name = username
 
-        # additional variables
-        # self.close_connection = False
+        # additional_vars
+        self.should_close_connection = False
 
     def start(self):
         '''
@@ -40,13 +40,40 @@ class Client:
         Waits for userinput and then process it
         '''
         # implementation
-        print("username is ", USER_NAME)
-        message = util.make_message(util.JOIN_MESSAGE,util.TYPE_ONE_MSG_FORMAT,USER_NAME)
+        message = util.make_message(util.JOIN_MESSAGE,util.TYPE_ONE_MSG_FORMAT,self.name)
         packet = util.make_packet(util.DATA_PACKET_TYPE,0,message)
         self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
 
-        # listens for messages from server
-        self.receive_handler()
+        # wait for user input
+        while True:
+            if self.should_close_connection:
+                break
+            user_input = input()
+
+            if user_input == "list":
+                message = util.make_message(util.REQUEST_USERS_LIST_MESSAGE,
+                                            util.TYPE_TWO_MSG_FORMAT)
+                packet = util.make_packet(util.DATA_PACKET_TYPE,0,message)
+                self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
+            elif user_input.startswith('msg'):
+                user_input = user_input.split()
+                if len(user_input) < 4: # msg <num_users> usernames.. message
+                    print("Incorrect user input format")
+                    continue
+                num_users = int(user_input[1])
+                users = user_input[2 : 2 + num_users]
+                if len(users) != num_users:
+                    print("Incorrect user input format")
+                    continue
+                message = ' '.join(user_input[2 + num_users:])
+                packet = util.make_packet(util.DATA_PACKET_TYPE,0,util.make_message(
+                    util.SEND_MESSAGE_MESSAGE,util.TYPE_FOUR_MSG_FORMAT,
+                    "{} {}".format(' '.join(users),message)
+                ))
+                self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
+
+            else:
+                print("Incorrect user input format")
 
     def receive_handler(self):
         '''
@@ -54,35 +81,43 @@ class Client:
         '''
         # implementation
         while True:
-            print("waiting for message from server...")
-            msg, _ = self.sock.recvfrom(util.CHUNK_SIZE)
-            packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
-            match packet_type:
-                case util.DATA_PACKET_TYPE:
-                    message = data.split()[0]
-                    match message:
-                        case util.ERR_SERVER_FULL_MESSAGE:
-                            print("received ERR_SERVER_FULL_MESSAGE from server")
-                            # close the connection to server and shut down
-                            print("disconnected: server full")
-                        case util.ERR_USERNAME_UNAVAILABLE_MESSAGE:
-                            print("received err username unavailable msg from server")
-                            # close the connection to server and shut down
-                            print("disconnected: username not available")
-                        case _:
-                            print("other message kind")
-                case util.START_PACKET_TYPE:
-                    print("Start packet type")
-                case util.END_PACKET_TYPE:
-                    print("End packet type")
-                case util.ACK_PACKET_TYPE:
-                    print("Ack packet type")
-                case _:
-                    print("invalid packet type")
-
-            print("Received msg from server:: ",msg)
-        # close connection
-        # self.sock.close()
+            try:
+                msg, _ = self.sock.recvfrom(util.CHUNK_SIZE)
+                packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
+                match packet_type:
+                    case util.DATA_PACKET_TYPE:
+                        message = data.split()[0]
+                        match message:
+                            case util.ERR_SERVER_FULL_MESSAGE:
+                                # print("received ERR_SERVER_FULL_MESSAGE from server")
+                                # close the connection to server and shut down
+                                print("disconnected: server full")
+                                raise SystemExit
+                            case util.ERR_USERNAME_UNAVAILABLE_MESSAGE:
+                                # print("received err username unavailable msg from server")
+                                # close the connection to server and shut down
+                                print("disconnected: username not available")
+                                raise SystemExit
+                            case util.RESPONSE_USERS_LIST_MESSAGE:
+                                # print("client received response for users list from server")
+                                # parse the response from server
+                                res = data[data.index('['):][1:-2]
+                                res = res.replace("'", "").replace(",", "").split()
+                                print("list: " + " ".join(_ for _ in res))
+                            case _:
+                                print("other message kind")
+                    case util.START_PACKET_TYPE:
+                        print("Start packet type")
+                    case util.END_PACKET_TYPE:
+                        print("End packet type")
+                    case util.ACK_PACKET_TYPE:
+                        print("Ack packet type")
+                    case _:
+                        print("invalid packet type")
+            except Exception as e:
+                self.sock.close()
+                self.should_close_connection = True
+                raise SystemExit
 
 # Do not change below part of code
 if __name__ == "__main__":

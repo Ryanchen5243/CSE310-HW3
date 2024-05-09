@@ -30,12 +30,10 @@ class Server:
         # implementation
         while True:
             # listen for messages from clients
-            print("Server socket {}".format(self.sock))
             msg,client = self.sock.recvfrom(util.CHUNK_SIZE)
             packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
             match packet_type:
                 case util.DATA_PACKET_TYPE:
-                    print("Data packet type")
                     message = data.split()[0]
                     match message:
                         case util.JOIN_MESSAGE:
@@ -62,14 +60,21 @@ class Server:
                             self.active_clients[client_username] = client
                             print("join: {}".format(client_username))
                         case util.REQUEST_USERS_LIST_MESSAGE:
-                            pass
+                            print("request user list msg detected")
+                            response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                      util.make_message(util.RESPONSE_USERS_LIST_MESSAGE,
+                                                        util.TYPE_THREE_MSG_FORMAT,
+                                                        sorted(self.active_clients.keys())))
+                            self.sock.sendto(response.encode(), client)
+                            print("request_users_list: {}".format(client_username))
+                        case util.SEND_MESSAGE_MESSAGE:
+                            print("server receved.. ",data)
 
-# Message Format: Type 2
-# Sender Action: A client sends this message to the server when it receives a message list via standard
-# input.
-# Receiver Action: The server will reply with RESPONSE_USERS_LIST message and will print:
-# request_users_list: <username>
-
+# Receiver Action: The server forwards this message to each user whose name is specified in the
+# request. It will also print:
+# msg: <sender username>
+# For each username that does not correspond to any client, the server will print:
+# msg: <sender username> to non-existent user <recv. username>
                         case _:
                             print("other message detected")
 

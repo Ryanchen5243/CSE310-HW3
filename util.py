@@ -19,9 +19,12 @@ TYPE_THREE_MSG_FORMAT = 3
 TYPE_FOUR_MSG_FORMAT = 4
 
 JOIN_MESSAGE = "join"
+REQUEST_USERS_LIST_MESSAGE = "request_users_list"
+RESPONSE_USERS_LIST_MESSAGE = "response_users_list"
+SEND_MESSAGE_MESSAGE = "send_message"
+
 ERR_SERVER_FULL_MESSAGE = "err_server_full"
 ERR_USERNAME_UNAVAILABLE_MESSAGE = "err_username_unavailable"
-REQUEST_USERS_LIST_MESSAGE = "request_users_list"
 
 
 def validate_checksum(message):
