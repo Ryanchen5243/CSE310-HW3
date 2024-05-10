@@ -32,60 +32,88 @@ class Server:
             # listen for messages from clients
             msg,client = self.sock.recvfrom(util.CHUNK_SIZE)
             packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
-            match packet_type:
-                case util.DATA_PACKET_TYPE:
-                    message = data.split()[0]
-                    match message:
-                        case util.JOIN_MESSAGE:
-                            print("join messaged detected")
-                            # check for server full
-                            if len(self.active_clients) == util.MAX_NUM_CLIENTS:
-                                response = util.make_packet(util.DATA_PACKET_TYPE,0,
-                                                            util.make_message(util.ERR_SERVER_FULL_MESSAGE,
-                                                                              util.TYPE_TWO_MSG_FORMAT))
-                                self.sock.sendto(response.encode(), client)
-                                print("disconnected: server full")
-                                continue
+            # obtain the usernmae for the given sender
+            key_list = list(self.active_clients.keys())
+            val_list = list(self.active_clients.values())
+            sender_username = None
+            try:
+                sender_username = key_list[val_list.index(client)]
+            except ValueError: # when join hasnt been processed yet
+                pass
 
-                            # check for existing username
-                            client_username = data.split()[-1]
-                            if client_username in self.active_clients:
-                                response = util.make_packet(util.DATA_PACKET_TYPE,0,
-                                                            util.make_message(util.ERR_USERNAME_UNAVAILABLE_MESSAGE,
-                                                                              util.TYPE_TWO_MSG_FORMAT))
-                                self.sock.sendto(response.encode(), client)
-                                print("disconnected: username not available")
-                                continue
-                            # add user
-                            self.active_clients[client_username] = client
-                            print("join: {}".format(client_username))
-                        case util.REQUEST_USERS_LIST_MESSAGE:
-                            print("request user list msg detected")
-                            response = util.make_packet(util.DATA_PACKET_TYPE,0,
-                                                      util.make_message(util.RESPONSE_USERS_LIST_MESSAGE,
-                                                        util.TYPE_THREE_MSG_FORMAT,
-                                                        sorted(self.active_clients.keys())))
-                            self.sock.sendto(response.encode(), client)
-                            print("request_users_list: {}".format(client_username))
-                        case util.SEND_MESSAGE_MESSAGE:
-                            print("server receved.. ",data)
+            if packet_type == util.DATA_PACKET_TYPE:
+                message = data.split()[0]
 
-# Receiver Action: The server forwards this message to each user whose name is specified in the
-# request. It will also print:
-# msg: <sender username>
-# For each username that does not correspond to any client, the server will print:
-# msg: <sender username> to non-existent user <recv. username>
-                        case _:
-                            print("other message detected")
+                if message == util.JOIN_MESSAGE:
+                    # check for server full
+                    if len(self.active_clients) == util.MAX_NUM_CLIENTS:
+                        response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                    util.make_message(util.ERR_SERVER_FULL_MESSAGE,
+                                                                        util.TYPE_TWO_MSG_FORMAT))
+                        self.sock.sendto(response.encode(), client)
+                        print("disconnected: server full")
+                        continue
 
-                case util.START_PACKET_TYPE:
-                    print("Start packet type")
-                case util.END_PACKET_TYPE:
-                    print("End packet type")
-                case util.ACK_PACKET_TYPE:
-                    print("Ack packet type")
-                case _:
-                    print("invalid packet type")
+                    # check for existing username
+                    client_username = data.split()[-1]
+                    if client_username in self.active_clients:
+                        response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                    util.make_message(util.ERR_USERNAME_UNAVAILABLE_MESSAGE,
+                                                                        util.TYPE_TWO_MSG_FORMAT))
+                        self.sock.sendto(response.encode(), client)
+                        print("disconnected: username not available")
+                        continue
+                    # add user
+                    self.active_clients[client_username] = client
+                    print("join: {}".format(client_username))
+                elif message == util.REQUEST_USERS_LIST_MESSAGE:
+                    response = util.make_packet(util.DATA_PACKET_TYPE,0,
+                                                util.make_message(util.RESPONSE_USERS_LIST_MESSAGE,
+                                                util.TYPE_THREE_MSG_FORMAT,
+                                                ' '.join(sorted(self.active_clients.keys()))))
+                    self.sock.sendto(response.encode(), client)
+                    print("request_users_list: {}".format(sender_username))
+                elif message == util.SEND_MESSAGE_MESSAGE:
+                    # forward message to corresponding recipient clients
+
+                    num_recipients = int(data.split()[2])
+                    data = data.split()[3:]
+                    recipients = data[0:num_recipients]
+                    message = ' '.join(data[num_recipients:])
+
+                    invalid_clients = []
+                    for r in recipients:
+                        if r in self.active_clients:
+                            recipient_addr,recipient_port = self.active_clients.get(r)
+                            # forward message
+                            fwd_response_msg = "1 {} {}".format(sender_username,message)
+                            response = util.make_packet(util.DATA_PACKET_TYPE,0,util.make_message(
+                                util.FORWARD_MESSAGE_MESSAGE,util.TYPE_FOUR_MSG_FORMAT,fwd_response_msg
+                            ))
+                            self.sock.sendto(response.encode(), (recipient_addr,recipient_port))
+                            print("msg: {}".format(sender_username))
+                        else:
+                            invalid_clients.append(r)
+
+                    for non_existent_client in invalid_clients:
+                        print("msg: {} to non-existent user {}".format(
+                            sender_username,non_existent_client
+                        ))
+
+                elif message == util.DISCONNECT_MESSAGE:
+                    self.active_clients.pop(sender_username, None)
+                    print("disconnected: {}".format(sender_username))
+                else:
+                    pass
+
+            elif packet_type == util.START_PACKET_TYPE:
+                pass
+            elif packet_type == util.END_PACKET_TYPE:
+                pass
+            elif packet_type == util.ACK_PACKET_TYPE:
+                pass
+            else:
+                pass
 
 # Do not change below part of code
 

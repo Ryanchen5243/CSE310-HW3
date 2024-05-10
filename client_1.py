@@ -57,21 +57,34 @@ class Client:
                 self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
             elif user_input.startswith('msg'):
                 user_input = user_input.split()
+
                 if len(user_input) < 4: # msg <num_users> usernames.. message
                     print("Incorrect user input format")
                     continue
-                num_users = int(user_input[1])
-                users = user_input[2 : 2 + num_users]
-                if len(users) != num_users:
+                try:
+                    num_users = int(user_input[1])
+                except ValueError:
                     print("Incorrect user input format")
                     continue
-                message = ' '.join(user_input[2 + num_users:])
+                if len(user_input) < 2 + num_users:
+                    print("Incorrect user input format")
+                    continue
+                users = ' '.join(user_input[2 : 2+num_users])
+                message = ' '.join(user_input[2+num_users : ])
                 packet = util.make_packet(util.DATA_PACKET_TYPE,0,util.make_message(
                     util.SEND_MESSAGE_MESSAGE,util.TYPE_FOUR_MSG_FORMAT,
-                    "{} {}".format(' '.join(users),message)
+                    "{} {} {}".format(num_users,users,message)
                 ))
                 self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
-
+            elif user_input == "help":
+                pass
+            elif user_input == "quit":
+                packet = util.make_packet(util.DATA_PACKET_TYPE,0,util.make_message(
+                    util.DISCONNECT_MESSAGE,util.TYPE_ONE_MSG_FORMAT,self.name
+                ))
+                self.sock.sendto(packet.encode(), (self.server_addr, self.server_port))
+                print("quitting")
+                return
             else:
                 print("Incorrect user input format")
 
@@ -84,36 +97,40 @@ class Client:
             try:
                 msg, _ = self.sock.recvfrom(util.CHUNK_SIZE)
                 packet_type, seqno, data, checksum = util.parse_packet(msg.decode())
-                match packet_type:
-                    case util.DATA_PACKET_TYPE:
-                        message = data.split()[0]
-                        match message:
-                            case util.ERR_SERVER_FULL_MESSAGE:
-                                # print("received ERR_SERVER_FULL_MESSAGE from server")
-                                # close the connection to server and shut down
-                                print("disconnected: server full")
-                                raise SystemExit
-                            case util.ERR_USERNAME_UNAVAILABLE_MESSAGE:
-                                # print("received err username unavailable msg from server")
-                                # close the connection to server and shut down
-                                print("disconnected: username not available")
-                                raise SystemExit
-                            case util.RESPONSE_USERS_LIST_MESSAGE:
-                                # print("client received response for users list from server")
-                                # parse the response from server
-                                res = data[data.index('['):][1:-2]
-                                res = res.replace("'", "").replace(",", "").split()
-                                print("list: " + " ".join(_ for _ in res))
-                            case _:
-                                print("other message kind")
-                    case util.START_PACKET_TYPE:
-                        print("Start packet type")
-                    case util.END_PACKET_TYPE:
-                        print("End packet type")
-                    case util.ACK_PACKET_TYPE:
-                        print("Ack packet type")
-                    case _:
-                        print("invalid packet type")
+                
+                if packet_type == util.DATA_PACKET_TYPE:
+                    message = data.split()[0]
+                    if message == util.ERR_SERVER_FULL_MESSAGE:
+                        # print("received ERR_SERVER_FULL_MESSAGE from server")
+                        # close the connection to server and shut down
+                        print("disconnected: server full")
+                        raise SystemExit
+                    elif message == util.ERR_USERNAME_UNAVAILABLE_MESSAGE:
+                        # print("received err username unavailable msg from server")
+                        # close the connection to server and shut down
+                        print("disconnected: username not available")
+                        # raise SystemExit
+                        self.should_close_connection = True
+                        return
+                    elif message == util.RESPONSE_USERS_LIST_MESSAGE:
+                        # print("client received response for users list from server")
+                        # parse the response from server
+                        usernames_list = ' '.join([e for e in data.split()[2:]])
+                        print("list: {}".format(usernames_list))
+                    elif message == util.FORWARD_MESSAGE_MESSAGE:
+                        sender = data.split()[3]
+                        msg = ' '.join(data.split()[4:])
+                        print("msg: {}: {}".format(sender,msg))
+                    else:
+                        pass
+                elif packet_type == util.START_PACKET_TYPE:
+                    pass
+                elif packet_type == util.END_PACKET_TYPE:
+                    pass
+                elif packet_type == util.ACK_PACKET_TYPE:
+                    pass
+                else:
+                    pass
             except Exception as e:
                 self.sock.close()
                 self.should_close_connection = True
